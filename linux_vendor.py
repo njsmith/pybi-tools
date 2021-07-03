@@ -1,13 +1,14 @@
 from collections import defaultdict
 from pathlib import Path
+import os.path
 from auditwheel.lddtree import lddtree
 from auditwheel.elfutils import (
-    elf_file_filter, elf_find_versioned_symbols, elf_read_dt_needed
+    elf_file_filter,
+    elf_find_versioned_symbols,
+    elf_read_dt_needed,
 )
 from auditwheel.policy import lddtree_external_references
-from auditwheel.repair import (
-    get_wheel_elfdata, copylib, append_rpath_within_wheel
-)
+from auditwheel.repair import get_wheel_elfdata, copylib, append_rpath_within_wheel
 from auditwheel.patcher import Patchelf
 
 
@@ -17,7 +18,9 @@ def get_tree_elfdata(base_path: Path):
     full_elftree = {}
     full_external_refs = {}
 
-    for fn, elf in elf_file_filter(str(fn) for fn in base_path.rglob("*") if fn.is_file()):
+    for fn, elf in elf_file_filter(
+        str(fn) for fn in base_path.rglob("*") if fn.is_file()
+    ):
         elftree = lddtree(fn)
         for key, value in elf_find_versioned_symbols(elf):
             versioned_symbols[key].add(value)
@@ -44,15 +47,19 @@ def repair(base_path: Path, abi: str, *, lib_sdir=".libs"):
     # here, fn is a path to an ELF file in the wheel, and v['libs'] contains its
     # required libs
     for fn, v in external_refs_by_fn.items():
-        ext_libs = v[abis[0]]['libs']  # type: Dict[str, str]
+        ext_libs = v[abi]["libs"]  # type: Dict[str, str]
         for soname, src_path in ext_libs.items():
             if src_path is None:
-                if (dst_dir / soname).exists():
+                if (dest_dir / soname).exists():
                     # Already bundled
                     continue
-                raise ValueError(('Cannot repair pybi, because required '
-                                  'library "%s" could not be located') %
-                                 soname)
+                raise ValueError(
+                    (
+                        "Cannot repair pybi, because required "
+                        'library "%s" could not be located'
+                    )
+                    % soname
+                )
 
             new_soname, new_path = copylib(src_path, dest_dir, patcher)
             soname_map[soname] = (new_soname, new_path)
@@ -60,7 +67,7 @@ def repair(base_path: Path, abi: str, *, lib_sdir=".libs"):
 
         if len(ext_libs) > 0:
             new_rpath = os.path.relpath(dest_dir, os.path.dirname(fn))
-            new_rpath = os.path.join('$ORIGIN', new_rpath)
+            new_rpath = os.path.join("$ORIGIN", new_rpath)
             append_rpath_within_wheel(fn, new_rpath, base_path, patcher)
 
     # we grafted in a bunch of libraries and modified their sonames, but

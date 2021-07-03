@@ -1,7 +1,3 @@
-# POLICY=manylinux2014 PLATFORM=x86_64 ./build.sh
-# docker run --rm -it -v $(pwd):/host pybi-build-image sh -c "PREFIX=/host/cpython-3.9.5 /build_scripts/build-cpython.sh 3.9.5"
-# docker run --rm -it -v $(pwd):/host pybi-build-image sh -c "PYTHONPATH=/host/local-pkgs /opt/_internal/cpython-3.9.5/bin/python3 bundle-pybi.py 3.9.5"
-
 import sys
 import zipfile
 import hashlib
@@ -14,9 +10,10 @@ import json
 from pathlib import Path, PurePosixPath
 import subprocess
 from tempfile import TemporaryDirectory
+import itertools
 
-SYMLINK_MODE = 0xa000
-SYMLINK_MASK = 0xf000
+SYMLINK_MODE = 0xA000
+SYMLINK_MASK = 0xF000
 MODE_SHIFT = 16
 
 
@@ -75,10 +72,14 @@ def pack_pybi(base, zipname):
                     raise RuntimeError("can't have symlinks inside .pybi-info")
                 target = os.readlink(path)
                 if os.path.isabs(target):
-                    raise RuntimeError(f"absolute symlinks are forbidden: {path} -> {target}")
+                    raise RuntimeError(
+                        f"absolute symlinks are forbidden: {path} -> {target}"
+                    )
                 target_normed = os.path.normpath(path.parent / target)
                 if not path_in(target_normed, base_path):
-                    raise RuntimeError(f"symlink points outside base: {path} -> {target}")
+                    raise RuntimeError(
+                        f"symlink points outside base: {path} -> {target}"
+                    )
                 # This symlink is OK
                 records.append((path, f"symlink={target}", ""))
                 zi = zipfile.ZipInfo(str(name))
@@ -86,18 +87,13 @@ def pack_pybi(base, zipname):
                 z.writestr(zi, target)
             elif path.is_file():
                 data = path.read_bytes()
-                data = fixup_shebang(base_path, scripts_path, path, data)
+                if path_in(path, scripts_path):
+                    data = fixup_shebang(base_path, scripts_path, path, data)
 
                 hasher = hashlib.new("sha256")
                 hasher.update(data)
                 hashed = base64.urlsafe_b64encode(hasher.digest()).decode("ascii")
-                records.append(
-                    (
-                        str(name),
-                        f"sha256={hashed}",
-                        str(len(data)),
-                    )
-                )
+                records.append((str(name), f"sha256={hashed}", str(len(data))))
 
                 if is_exec_bit_set(path):
                     mode = 0o755
@@ -133,20 +129,28 @@ def pack_pybi(base, zipname):
 
 
 def add_pybi_metadata(
-    *, base_path: Path, scripts_path: Path, platform_tag: str,
-        build_number=0,
+    base_path: Path, scripts_path: Path, platform_tag: str, out_dir_path: Path
 ):
     scripts_path = base_path / scripts_path
 
-    if not (scripts_path / "python").exists():
-        if (scripts_path / "python3").exists():
-            (scripts_path / "python").symlink_to("python3")
-        else:
-            raise RuntimeError(f"can't find python in {scripts_path}")
+    if os.name == "nt":
+        if not (scripts_path / "python.exe").exists():
+            raise RuntimeError(f"can't find python.exe in {scripts_path}")
+    else:
+        if not (scripts_path / "python").exists():
+            if (scripts_path / "python3").exists():
+                (scripts_path / "python").symlink_to("python3")
+            else:
+                raise RuntimeError(f"can't find python in {scripts_path}")
 
     with TemporaryDirectory() as temp:
-        subprocess.run([sys.executable, "-m", "pip", "install", "packaging", "--target",
-                        temp], check=True)
+        # --no-user is needed because otherwise, on windows, I get:
+        #   ERROR: Can not combine '--user' and '--target'
+        # Some kind of buggy default, I guess?
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "packaging", "--no-user", "--target", temp],
+            check=True,
+        )
 
         pybi_json_code = (
             f"""
@@ -188,27 +192,41 @@ json.dump({"markers_env": markers_env, "tags": str_tags, "paths": paths}, sys.st
             """
         )
 
-        result = subprocess.run([scripts_path / "python"],
-                                input=pybi_json_code.encode("utf-8"),
-                                stdout=subprocess.PIPE, check=True)
+        result = subprocess.run(
+            [scripts_path / "python"],
+            input=pybi_json_code.encode("utf-8"),
+            stdout=subprocess.PIPE,
+            check=True,
+        )
 
     pybi_json_bytes = result.stdout
-    pybi_json = json.loads(pybi_info_json)
+    pybi_json = json.loads(pybi_json_bytes)
+
+    assert (base_path / pybi_json["paths"]["scripts"]) == scripts_path
 
     name = pybi_json["markers_env"]["implementation_name"]
     version = pybi_json["markers_env"]["implementation_version"]
 
     # for now these are all "proof of concept" builds
-    name = f"{name}_poc"
+    name = f"{name}_unofficial"
 
-    pybi_info_path = base_path / f"{name}_poc-{version}.pybi-info"
+    for build_number in itertools.count():
+        if build_number > 0:
+            pybi_name = f"{name}-{version}-{build_number}-{platform_tag}.pybi"
+        else:
+            pybi_name = f"{name}-{version}-{platform_tag}.pybi"
+        pybi_path = out_dir_path / pybi_name
+        if not pybi_path.exists():
+            break
+
+    pybi_info_path = base_path / f"{name}-{version}.pybi-info"
     pybi_info_path.mkdir(exist_ok=True)
 
     (pybi_info_path / "PYBI").write_text(
         "Pybi-Version: 1.0\n"
-        + "Generator: njs-hacky-script 0.0\n"
-        + f"Tag: {platform_tag}\n"
-        + f"Build: {build_number}\n" if build_number > 0 else ""
+        "Generator: njs-hacky-script 0.0\n"
+        f"Tag: {platform_tag}\n"
+        + (f"Build: {build_number}\n" if build_number > 0 else "")
     )
 
     (pybi_info_path / "METADATA").write_text(
@@ -221,15 +239,12 @@ json.dump({"markers_env": markers_env, "tags": str_tags, "paths": paths}, sys.st
         "License: Python-2.0\n"
     )
 
-    (pybi_info / "pybi.json").write_bytes(pybi_json_bytes)
+    (pybi_info_path / "pybi.json").write_bytes(pybi_json_bytes)
 
-    if build_number > 0:
-        return f"{name}-{version}-{build_number}-{platform_tag}.pybi"
-    else:
-        return f"{name}-{version}-{platform_tag}.pybi"
+    return pybi_path
 
 
 def make_pybi(base_path, out_dir_path, *, scripts_path, platform_tag, build_number=0):
-    pybi_name = add_pybi_metadata(base_path, scripts_path, platform_tag, build_number)
-    zip_path = out_dir_path / pybi_name
-    pack_pybi(base_path, zip_path)
+    out_dir_path.mkdir(parents=True, exist_ok=True)
+    pybi_path = add_pybi_metadata(base_path, scripts_path, platform_tag, out_dir_path)
+    pack_pybi(base_path, pybi_path)
