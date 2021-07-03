@@ -83,7 +83,9 @@ def pack_pybi(base, zipname):
                 # This symlink is OK
                 records.append((path, f"symlink={target}", ""))
                 zi = zipfile.ZipInfo(str(name))
-                zi.external_attr = SYMLINK_MODE << MODE_SHIFT
+                # on macOS, if the symlink doesn't have permission bits set, you can't
+                # follow the link!
+                zi.external_attr = (SYMLINK_MODE | 0o644) << MODE_SHIFT
                 z.writestr(zi, target)
             elif path.is_file():
                 data = path.read_bytes()
@@ -169,6 +171,10 @@ markers_env = packaging.markers.default_environment()
 # Delete any keys that depend on the final installation
 del markers_env["platform_release"]
 del markers_env["platform_version"]
+# Darwin binaries are often multi-arch, so play it safe and
+# delete the architecture marker.
+if markers_env["sys_platform"] == "darwin":
+    del markers_env["platform_machine"]
 
 # Copied and tweaked version of packaging.tags.sys_tags
 tags = []
@@ -186,6 +192,10 @@ tags += list(packaging.tags.compatible_tags(platforms=["xyzzy"]))
 str_tags = [str(t).replace("xyzzy", "PLATFORM") for t in tags]
 
 (base_path,) = sysconfig.get_config_vars("installed_base")
+# For some reason, macOS framework builds report their base_path as a directory deep
+# inside the framework
+while "Python.framework" in base_path:
+    base_path = os.path.dirname(base_path)
 paths = {key: os.path.relpath(path, base_path) for (key, path) in sysconfig.get_paths().items()}
 
 json.dump({"markers_env": markers_env, "tags": str_tags, "paths": paths}, sys.stdout)
@@ -202,6 +212,10 @@ json.dump({"markers_env": markers_env, "tags": str_tags, "paths": paths}, sys.st
     pybi_json_bytes = result.stdout
     pybi_json = json.loads(pybi_json_bytes)
 
+    # import pprint
+    # pprint.pprint(pybi_json)
+    # print(base_path / pybi_json["paths"]["scripts"])
+    # print(scripts_path)
     assert (base_path / pybi_json["paths"]["scripts"]) == scripts_path
 
     name = pybi_json["markers_env"]["implementation_name"]
