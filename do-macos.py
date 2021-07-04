@@ -95,4 +95,5 @@ def maybe_repack(py_version, tag, os_version):
 
 
 for py_version, tag, os_version in find_all_macos_builds():
+    #print((py_version, tag, os_version))
     maybe_repack(py_version, tag, os_version)
