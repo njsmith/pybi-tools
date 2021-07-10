@@ -21,6 +21,10 @@ def path_in(inner, outer):
     return os.path.commonpath([inner, outer]) == str(outer)
 
 
+# On macOS and Linux, the CPython build system creates #! lines that contain the
+# absolute path to the interpreter, which of course will break if the interpreter is
+# unpacked at a different location. This replaces those #! lines with some
+# location-independent magic.
 def fixup_shebang(base_path, scripts_path, path, data):
     if not data.startswith(b"#!"):
         return data
@@ -31,8 +35,24 @@ def fixup_shebang(base_path, scripts_path, path, data):
         # Could be #!/bin/sh, for example
         return data
     interpreter_relative = os.path.relpath(interpreter_path, path.parent)
+    # The weird quoting at the top and bottom is to trick sh into parsing this code,
+    # while hiding it from python.
+    #
+    # The loop is to handle the case where someone makes a symlink from outside the pybi
+    # scripts directory pointing to one of the scripts -- in this case we need to find
+    # the directory the actual script file lives in, not the directory the symlink lives
+    # in.
     new_shebang = f"""#!/bin/sh
-'''exec' "$(dirname "$0")/{interpreter_relative}" "$0" "$@"
+''':'
+SCRIPT="$0"
+while [ -L "$SCRIPT" ]; do
+    TARGET="$(readlink "$SCRIPT")"
+    case "$TARGET" in
+        /*) SCRIPT="$TARGET" ;;
+        *) SCRIPT="$(dirname "$SCRIPT")"/"$TARGET" ;;
+    esac
+end
+exec "$(dirname "$SCRIPT")/{interpreter_relative}" "$0" "$@"
 ' '''
 # The above is magic to invoke an interpreter relative to this script
 """
