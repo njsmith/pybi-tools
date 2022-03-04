@@ -27,7 +27,7 @@ find these builds.
 
 The Linux pybis are build by hand, but reusing most of the manylinux
 docker image build scripts, with [a few
-tweaks](https://github.com/pypa/manylinux/compare/master...njsmith:pybi).
+tweaks](https://github.com/pypa/manylinux/compare/main...njsmith:pybi).
 Then `linux_vendor.py` does some hacky stuff to trick auditwheel into
 working on an unpacked pybi.
 
