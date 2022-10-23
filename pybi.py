@@ -253,7 +253,7 @@ json.dump({"markers_env": markers_env, "tags": str_tags, "paths": paths}, sys.st
         if not pybi_path.exists():
             break
 
-    pybi_info_path = base_path / f"{name}-{version}.pybi-info"
+    pybi_info_path = base_path / "pybi-info"
     pybi_info_path.mkdir(exist_ok=True)
 
     (pybi_info_path / "PYBI").write_text(
@@ -263,6 +263,11 @@ json.dump({"markers_env": markers_env, "tags": str_tags, "paths": paths}, sys.st
         + (f"Build: {build_number}\n" if build_number > 0 else "")
     )
 
+    markers_env_str = json.dumps(pybi_json["markers_env"])
+    assert "\n" not in markers_env_str
+    paths_str = json.dumps(pybi_json["paths"])
+    assert "\n" not in paths_str
+
     (pybi_info_path / "METADATA").write_text(
         "Metadata-Version: 2.2\n"
         f"Name: {name}\n"
@@ -271,9 +276,12 @@ json.dump({"markers_env": markers_env, "tags": str_tags, "paths": paths}, sys.st
         # included in the interpreter itself (see builtins.license), so I guess we don't
         # need to mess around with including it again.
         "License: Python-2.0\n"
+        f"Markers-Env: {markers_env_str}\n"
+        f"Paths: {paths_str}\n"
+        + "\n".join(f"Tag: {tag}" for tag in pybi_json["tags"])
     )
 
-    (pybi_info_path / "pybi.json").write_bytes(pybi_json_bytes)
+    #(pybi_info_path / "pybi.json").write_bytes(pybi_json_bytes)
 
     return pybi_path
 
