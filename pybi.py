@@ -276,7 +276,7 @@ json.dump({"markers_env": markers_env, "tags": str_tags, "paths": paths}, sys.st
         # included in the interpreter itself (see builtins.license), so I guess we don't
         # need to mess around with including it again.
         "License: Python-2.0\n"
-        f"Pybi-Environment-Markers: {markers_env_str}\n"
+        f"Pybi-Environment-Marker-Variables: {markers_env_str}\n"
         f"Pybi-Paths: {paths_str}\n"
         + "\n".join(f"Pybi-Wheel-Tag: {tag}" for tag in pybi_json["tags"])
         + "\n\n"
