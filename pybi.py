@@ -65,14 +65,14 @@ def is_exec_bit_set(path):
     return bool(path.stat().st_mode & 0o100)
 
 
-def pack_pybi(base, zipname):
+def pack_pybi(base, zipname, scripts_dir):
     # *_path are absolute filesystem Path objects
     # *_name are relative PurePosixPath objects referring to locations in the zip file
     base_path = Path(base).resolve()
-    (pybi_info_path,) = base_path.glob("*.pybi-info")
+    pybi_info_path = base_path / "pybi-info"
     pybi_info_name = PurePosixPath(pybi_info_path.name)
-    pybi_meta = json.loads((pybi_info_path / "pybi.json").read_text())
-    scripts_path = base / pybi_meta["paths"]["scripts"]
+    #pybi_meta = json.loads((pybi_info_path / "pybi.json").read_text())
+    scripts_path = base / scripts_dir
 
     record_name = pybi_info_name / "RECORD"
     records = [(str(record_name), "", "")]
@@ -276,17 +276,19 @@ json.dump({"markers_env": markers_env, "tags": str_tags, "paths": paths}, sys.st
         # included in the interpreter itself (see builtins.license), so I guess we don't
         # need to mess around with including it again.
         "License: Python-2.0\n"
-        f"Markers-Env: {markers_env_str}\n"
-        f"Paths: {paths_str}\n"
-        + "\n".join(f"Tag: {tag}" for tag in pybi_json["tags"])
+        f"Pybi-Environment-Markers: {markers_env_str}\n"
+        f"Pybi-Paths: {paths_str}\n"
+        + "\n".join(f"Pybi-Wheel-Tag: {tag}" for tag in pybi_json["tags"])
+        + "\n"
     )
 
+    scripts_dir = pybi_json["paths"]["scripts"]
     #(pybi_info_path / "pybi.json").write_bytes(pybi_json_bytes)
 
-    return pybi_path
+    return pybi_path, scripts_dir
 
 
 def make_pybi(base_path, out_dir_path, *, scripts_path, platform_tag, build_number=0):
     out_dir_path.mkdir(parents=True, exist_ok=True)
-    pybi_path = add_pybi_metadata(base_path, scripts_path, platform_tag, out_dir_path)
-    pack_pybi(base_path, pybi_path)
+    pybi_path, scripts_dir = add_pybi_metadata(base_path, scripts_path, platform_tag, out_dir_path)
+    pack_pybi(base_path, pybi_path, scripts_dir)
