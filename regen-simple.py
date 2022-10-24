@@ -34,9 +34,9 @@ built_path = Path("built")
     </html>
     """)
 
-(built_path / "cpython_unofficial").mkdir(exist_ok=True)
+(built_path / "cpython-unofficial").mkdir(exist_ok=True)
 
-with open(built_path / "cpython_unofficial" / "index.html", "w") as f:
+with open(built_path / "cpython-unofficial" / "index.html", "w") as f:
     f.write("<!DOCTYPE html><html><body>\n")
     # I guess if we wanted to be fancy we could do a proper version sort, but a naive
     # string sort is still better than nothing.
