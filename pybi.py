@@ -279,7 +279,8 @@ json.dump({"markers_env": markers_env, "tags": str_tags, "paths": paths}, sys.st
         f"Pybi-Environment-Markers: {markers_env_str}\n"
         f"Pybi-Paths: {paths_str}\n"
         + "\n".join(f"Pybi-Wheel-Tag: {tag}" for tag in pybi_json["tags"])
-        + "\n"
+        + "\n\n"
+        "This is an unofficial pybi build of CPython from https://pybi.vorpus.org\n"
     )
 
     scripts_dir = pybi_json["paths"]["scripts"]
