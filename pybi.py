@@ -51,7 +51,7 @@ while [ -L "$SCRIPT" ]; do
         /*) SCRIPT="$TARGET" ;;
         *) SCRIPT="$(dirname "$SCRIPT")"/"$TARGET" ;;
     esac
-end
+done
 exec "$(dirname "$SCRIPT")/{interpreter_relative}" "$0" "$@"
 ' '''
 # The above is magic to invoke an interpreter relative to this script
