@@ -101,7 +101,7 @@ def pack_pybi(base, zipname, scripts_dir):
                         f"symlink points outside base: {path} -> {target}"
                     )
                 # This symlink is OK
-                records.append((path, f"symlink={target}", ""))
+                records.append((str(name), f"symlink={target}", ""))
                 zi = zipfile.ZipInfo(str(name))
                 # on macOS, if the symlink doesn't have permission bits set, you can't
                 # follow the link!
