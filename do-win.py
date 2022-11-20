@@ -53,7 +53,7 @@ def python_nupkg_urls():
 
 
 for pkg, version, url in python_nupkg_urls():
-    if version.startswith("3.5."):
+    if version.startswith("3.5.") or version.startswith("3.6."):
         continue
     if pkg == "python":
         tag = "win_amd64"

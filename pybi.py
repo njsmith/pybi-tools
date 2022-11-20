@@ -179,7 +179,7 @@ def add_pybi_metadata(
 import sys
 sys.path.insert(0, {temp!r})
 """
-            + """
+            + r"""
 import packaging.markers
 import packaging.tags
 import sysconfig
