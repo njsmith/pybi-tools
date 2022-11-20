@@ -216,7 +216,7 @@ str_tags = [str(t).replace("xyzzy", "PLATFORM") for t in tags]
 # inside the framework
 while "Python.framework" in base_path:
     base_path = os.path.dirname(base_path)
-paths = {key: os.path.relpath(path, base_path) for (key, path) in sysconfig.get_paths().items()}
+paths = {key: os.path.relpath(path, base_path).replace("\\", "/") for (key, path) in sysconfig.get_paths().items()}
 
 json.dump({"markers_env": markers_env, "tags": str_tags, "paths": paths}, sys.stdout)
             """
